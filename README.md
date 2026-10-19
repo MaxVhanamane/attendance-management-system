@@ -1,34 +1,43 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Attendance Management System
 
-## Getting Started
+A web-based attendance management system designed to simplify attendance tracking for teachers and keep parents informed about their children's attendance through SMS notifications.
 
-First, run the development server:
+## How It Works
 
-```bash
-npm run dev
-# or
-yarn dev
-```
+- **Quick Attendance Tracking:** Teachers can mark students as present or absent without manually recording P/A entries in a register, saving time and effort.
+- **SMS Notifications to Parents:** Parents receive SMS notifications about their child's attendance, helping them stay informed about whether their child has been marked present or absent.
+- **Monthly Attendance Reports:** Teachers can view monthly attendance records to track student attendance and identify absences.
+- **Better Parent Communication:** Timely notifications help parents stay informed and follow up when their child is absent unexpectedly.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Screenshots
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+### Homepage
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+![Homepage](./screenshots/homepage.png)
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+### Attendance Page
 
-## Learn More
+![Attendance Page](./screenshots/attendance-page.png)
 
-To learn more about Next.js, take a look at the following resources:
+### View Attendance
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+![View Attendance Page](./screenshots/view-attendance-page.png)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+### Admin Panel
 
-## Deploy on Vercel
+![Admin Panel](./screenshots/admin-panel.png)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Edit Attendance
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+![Edit Attendance Page](./screenshots/edit-attendance-page.png)
+
+### Login Page
+
+![Login Page](./screenshots/login-page.png)
+
+## Tech Stack
+
+- Next.js
+- React
+- MongoDB
+- JavaScript
