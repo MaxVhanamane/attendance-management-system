@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { GiDeskLamp } from 'react-icons/gi';
 import Image from 'next/image';
+import { AuthContext } from '../context/AuthState';
 
 
 export default function Forgotpassword() {
   const router = useRouter()
+  const { token } = useContext(AuthContext)
   const [email, setEmail] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [cNewpassword, setCNewPassword] = useState("")
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
     if (token) {
       router.push("/")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [token, router])
 
 
   const handleChange = (e) => {

@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import Head from "next/head";
 import DashboardSidebar from '../../components/DashboardSidebar';
 import { toast } from 'react-toastify';
+import { fetchWithAuth } from '../../lib/fetchWithAuth';
+import { verifySSRAuth } from '../../middleware/auth';
 
-
-export default function AddStudent() {
+export default function AddTeacher() {
 
   const [teacherDetails, setTeacherDetails] = useState({
     name: "",
@@ -16,100 +17,54 @@ export default function AddStudent() {
   })
 
   const handleChange = (e) => {
-
-    if (e.target.name === "name") {
-      setTeacherDetails({
-        ...teacherDetails,
-        name: e.target.value
-      })
-    }
-
-    else if (e.target.name === "email") {
-      setTeacherDetails({
-        ...teacherDetails,
-        email: e.target.value
-      })
-    }
-
-    else if (e.target.name === "role") {
-      setTeacherDetails({
-        ...teacherDetails,
-        role: e.target.value
-      })
-    }
-
-    else if (e.target.name === "address") {
-      setTeacherDetails({
-        ...teacherDetails,
-        address: e.target.value
-      })
-    }
-
-    else if (e.target.name === "password") {
-      setTeacherDetails({
-        ...teacherDetails,
-        password: e.target.value
-      })
-    }
-
-    else if (e.target.name === "phone") {
-      setTeacherDetails({
-        ...teacherDetails,
-        phone: e.target.value
-      })
-    }
-
-
+    const { name, value } = e.target;
+    setTeacherDetails((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   }
 
   const handleAdd = async () => {
 
     const teacherInfo = { name: teacherDetails.name, email: teacherDetails.email, role: teacherDetails.role, address: teacherDetails.address, password: teacherDetails.password, phone: teacherDetails.phone };
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/addteacher`, {
-      method: 'POST', // or 'PUT'
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(teacherInfo),
-    })
-
-    const response = await res.json()
-
-    if (response.success) {
-
-      toast.success('Teacher added successfully!');
-
-      setTeacherDetails({
-        ...teacherDetails,
-        name: "",
-        email: "",
-        password: "",
-        role: "",
-        address: "",
-        phone: "",
+    try {
+      const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/addteacher`, {
+        method: 'POST',
+        body: JSON.stringify(teacherInfo),
       })
 
-    }
-    else {
-      toast.error(response.error);
+      const response = await res.json()
+
+      if (response.success) {
+
+        toast.success(response.message || 'Teacher added successfully!');
+
+        setTeacherDetails({
+          name: "",
+          email: "",
+          password: "",
+          role: "",
+          address: "",
+          phone: "",
+        })
+
+      }
+      else {
+        toast.error(response.error || 'Failed to add teacher');
+      }
+    } catch (err) {
+      toast.error('Network error. Failed to add teacher.');
     }
 
   }
 
   return (
     <>
-      <style jsx global>{`
-       footer{
-        display:none;
-       }
-       nav{
-        display:none;
-       }
-      `}</style>
       <Head>
-        <title>Dashboard - Add Students</title>
-        <meta name="description" content="Add a food item" />
+        <title>Add Teacher - ClassScribe</title>
+        <meta name="description" content="Add a new teacher" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
       <DashboardSidebar />
       <div className="lg:ml-60 sticky top-0 bg-[#f9fafb] z-10">
@@ -232,11 +187,11 @@ export default function AddStudent() {
               <option value={"default"} className="text-center" disabled>
                 Select the Role
               </option>
-              <option value={"Admin"} className="text-center" >
-                Admin
+              <option value={"admin"} className="text-center" >
+                admin
               </option>
-              <option value={"Teacher"} className="text-center" >
-                Teacher
+              <option value={"teacher"} className="text-center" >
+                teacher
               </option>
 
             </select>
@@ -269,6 +224,14 @@ export default function AddStudent() {
 
         </div></div></>
   )
+}
+
+export async function getServerSideProps(context) {
+  const authRedirect = verifySSRAuth(context, { requiredRole: 'admin' });
+  if (authRedirect) {
+    return authRedirect;
+  }
+  return { props: {} };
 }
 
 

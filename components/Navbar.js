@@ -34,7 +34,18 @@ export default function Navbar() {
             <Link href="/"><a className={`${currentPath == "/" ? "text-teal-500" : 'text-gray-500'}  hover:bg-gray-100  px-3 py-2 rounded-2xl text-sm font-medium transition duration-300 `} >Home</a></Link>
             <Link href="/dashboard/addstudent"><a className={`text-gray-500 hover:bg-gray-100  px-3 py-2 rounded-2xl text-sm font-medium transition duration-300`} >Dashboard</a></Link>
 
-            <button onClick={() => { removeToken() }} ><a className={`text-gray-500 hover:bg-gray-100 px-3 py-2 rounded-2xl text-sm font-medium transition duration-300`} >Logout</a></button>
+            <button
+              type="button"
+              onClick={() => {
+                const confirmValue = confirm("Do you really want to Logout?")
+                if (confirmValue) {
+                  removeToken()
+                }
+              }}
+              className="text-gray-500 hover:bg-gray-100 px-3 py-2 rounded-2xl text-sm font-medium transition duration-300"
+            >
+              Logout
+            </button>
           </div>
         </div>}
       </div>
@@ -45,13 +56,17 @@ export default function Navbar() {
         </div>
         <div className="px-2 pt-6 pb-3  flex flex-col  ">
           <ul className="flex flex-col gap-6">
-            <Link href="/"><li onClick={() => { setShowToggler(!showToggler); setChangeHambIcon(!changeHambIcon) }}>
-              <a className={`text-gray-500   rounded-md text-sm font-medium transition duration-300`}><span className='flex gap-2 items-center pl-4'><AiOutlineHome className='text-xl' />Home</span></a>
-            </li></Link>
-            <Link href="/dashboard/addstudent"><li onClick={() => { setShowToggler(!showToggler); setChangeHambIcon(!changeHambIcon) }}>
-              <a className={`text-gray-500   rounded-md text-sm font-medium transition duration-300`}><span className='flex gap-2 items-center pl-4'><AiOutlineDashboard className='text-xl' />Dashboard</span></a>
-            </li></Link>
-            <Link href="/"><li onClick={() => {
+            <li onClick={() => { setShowToggler(!showToggler); setChangeHambIcon(!changeHambIcon) }}>
+              <Link href="/">
+                <a className="text-gray-500 rounded-md text-sm font-medium transition duration-300"><span className='flex gap-2 items-center pl-4'><AiOutlineHome className='text-xl' />Home</span></a>
+              </Link>
+            </li>
+            <li onClick={() => { setShowToggler(!showToggler); setChangeHambIcon(!changeHambIcon) }}>
+              <Link href="/dashboard/addstudent">
+                <a className="text-gray-500 rounded-md text-sm font-medium transition duration-300"><span className='flex gap-2 items-center pl-4'><AiOutlineDashboard className='text-xl' />Dashboard</span></a>
+              </Link>
+            </li>
+            <li onClick={() => {
               let confirmValue = confirm("Do you really want to Logout?")
               if (confirmValue) {
                 removeToken();
@@ -59,14 +74,11 @@ export default function Navbar() {
                 setShowToggler(!showToggler)
               }
             }}>
-              <a className={`text-red-500  rounded-md text-sm font-medium transition duration-300`} ><span className='flex gap-2 items-center pl-4'><AiOutlineLogout className='text-xl' />Logout</span></a>
-            </li></Link>
+              <span className="text-red-500 cursor-pointer rounded-md text-sm font-medium transition duration-300"><span className='flex gap-2 items-center pl-4'><AiOutlineLogout className='text-xl' />Logout</span></span>
+            </li>
           </ul>
         </div>
       </div>
     </nav>
-
   )
 }
-
-

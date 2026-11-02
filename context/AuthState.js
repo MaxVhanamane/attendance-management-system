@@ -1,53 +1,84 @@
-import React, { useEffect } from "react";
-import { createContext, useState } from "react";
-import { useRouter } from "next/router";
+import React, { useEffect, createContext, useState } from 'react';
+import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// creating context object and exporting it.
 export const AuthContext = createContext();
 
 function AuthState(props) {
-
-
   const [token, setToken] = useState(null);
   const [role, setRole] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    let tokenValue = localStorage.getItem("token")
-    let role = localStorage.getItem("role")
-
-    if (tokenValue && role) {
-      setToken(tokenValue)
-      setRole(role)
+  const checkAuth = async () => {
+    try {
+      const res = await fetch('/api/verifyauthexptime', {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        setToken('authenticated');
+        setRole(data.user.role || null);
+        setUser(data.user);
+        return data.user;
+      } else {
+        setToken(null);
+        setRole(null);
+        setUser(null);
+        return null;
+      }
+    } catch (err) {
+      setToken(null);
+      setRole(null);
+      setUser(null);
+      return null;
+    } finally {
+      setLoading(false);
     }
-  }, [])
+  };
 
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-  const removeToken = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("role")
-    setToken(null)
-    setRole(null)
-    router.push("/login")
-    toast.success('Logged out successfully!', {
-      position: "top-left",
-      autoClose: 2000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-    });
-  }
+  const removeToken = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch (e) {
+      // Ignore network errors on logout
+    }
+    setToken(null);
+    setRole(null);
+    setUser(null);
+    router.push('/login');
+    if (!toast.isActive('logout-toast')) {
+      toast.success('Logged out successfully!', {
+        toastId: 'logout-toast',
+        position: 'top-left',
+        autoClose: 2000,
+      });
+    }
+  };
 
   return (
     <AuthContext.Provider
-      value={{ token, role, removeToken, setRole, setToken, loading, setLoading }}
+      value={{
+        token,
+        role,
+        user,
+        isAuthenticated: !!token,
+        removeToken,
+        setRole,
+        setToken,
+        setUser,
+        checkAuth,
+        loading,
+        setLoading,
+      }}
     >
-      {/* Provider will give access to all the above states and functions to the components which are in props.children */}
       {props.children}
     </AuthContext.Provider>
   );

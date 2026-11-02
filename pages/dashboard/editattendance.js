@@ -4,6 +4,7 @@ import Student from '../../models/students';
 import connectDb from '../../middleware/mongoose';
 import DashboardSidebar from '../../components/DashboardSidebar';
 import Link from 'next/link';
+import { verifySSRAuth } from '../../middleware/auth';
 
 
 export default function EditAttendace({ allStudents }) {
@@ -46,17 +47,9 @@ export default function EditAttendace({ allStudents }) {
 
   return (
     <>
-      <style jsx global>{`
-       footer{
-        display:none;
-       }
-       nav{
-        display:none;
-       }
-      `}</style>
       <Head>
-        <title>Attendance</title>
-        <meta name="description" content="Student attendance" />
+        <title>Edit Attendance - ClassScribe</title>
+        <meta name="description" content="Edit student attendance" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <DashboardSidebar />
@@ -213,12 +206,14 @@ export default function EditAttendace({ allStudents }) {
 
 
 export async function getServerSideProps(context) {
-  // Fetch data from external API
-  connectDb()
-  // let className = (context.query.className);
-  // let division = (context.query.division);
+  const authRedirect = verifySSRAuth(context);
+  if (authRedirect) {
+    return authRedirect;
+  }
 
-  let students = await Student.find({})
+  await connectDb()
+
+  let students = await Student.find({}).sort({ className: 1, division: 1, rollNumber: 1 })
 
   return { props: { allStudents: JSON.parse(JSON.stringify(students)) } }
 }

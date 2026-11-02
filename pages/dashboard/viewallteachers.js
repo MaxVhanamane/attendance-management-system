@@ -4,6 +4,8 @@ import User from './../../models/users';
 import connectDb from './../../middleware/mongoose';
 import { toast } from 'react-toastify';
 import DashboardSidebar from '../../components/DashboardSidebar';
+import { verifySSRAuth } from '../../middleware/auth';
+import { fetchWithAuth } from '../../lib/fetchWithAuth';
 
 
 export default function ViewAllTeachers({ allTeachers }) {
@@ -26,107 +28,91 @@ export default function ViewAllTeachers({ allTeachers }) {
 
   // handle Search
   const handleSearch = async () => {
+    try {
+      let data = { role: roleName }
 
-    let data = { role: roleName }
+      let response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/getteachers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
 
-    let response = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/getteachers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    let foundTeachers = await response.json()
-
-    setAllTeachersInfo(foundTeachers.teachers)
-
+      let foundTeachers = await response.json()
+      setAllTeachersInfo(foundTeachers.teachers || [])
+    } catch (err) {
+      toast.error('Failed to search teachers');
+    }
   }
 
   // view all teachers
   const handleViewAll = async () => {
+    try {
+      let response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/getteachers`, {
+        method: 'GET',
+      })
 
-    let response = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/getteachers`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    let foundTeachers = await response.json()
-    setAllTeachersInfo(foundTeachers.teachers)
-
+      let foundTeachers = await response.json()
+      setAllTeachersInfo(foundTeachers.teachers || [])
+    } catch (err) {
+      toast.error('Failed to load teachers');
+    }
   }
 
   const handleDeleteTeacher = async (item) => {
+    try {
+      let data = { _id: item._id }
 
-    let data = { _id: item._id }
+      let response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/deleteteacher`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
 
-    let response = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/deleteteacher`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+      let result = await response.json()
 
-    })
-
-    let result = await response.json()
-
-    if (result.success) {
-
-      toast.success('Teacher details deleted successfully!');
-
-      // if the user has not slected the role, then after deleting the teacher informatin we will show all the teachers data by calling handleViewAll.
-      //If the user has selected the role, we will only show that role data to the user by calling handleSearch.
-
-      if (!roleName) {
-        handleViewAll()
+      if (result.success) {
+        toast.success('Teacher details deleted successfully!');
+        if (!roleName) {
+          handleViewAll()
+        }
+        else {
+          handleSearch()
+        }
       }
       else {
-        handleSearch()
-
+        toast.error(result.error || 'Teacher details not found!');
       }
-    }
-    else {
-      toast.error('Teacher details not found!');
+    } catch (err) {
+      toast.error(err.message || 'Network error. Failed to delete teacher.');
     }
   }
 
-
   const handleEditTeacherDetails = async () => {
+    try {
+      const data = { _id: teacherDetails._id, name: teacherDetails.name, email: teacherDetails.email, role: teacherDetails.role, phone: teacherDetails.phone, address: teacherDetails.address };
 
-    const data = { _id: teacherDetails._id, name: teacherDetails.name, email: teacherDetails.email, role: teacherDetails.role, phone: teacherDetails.phone, address: teacherDetails.address };
+      const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/editteacherdetails`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/editteacherdetails`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
+      const response = await res.json()
 
-    const response = await res.json()
+      if (response.success) {
+        toast.success('Teacher details updated successfully!');
+        setOpenTeacherDetailsEditModal(false);
 
-    if (response.success) {
-
-      toast.success('Teacher details updated successfully!');
-      // if the user has not slected the class and division, then after updating the student informatin we will show all the students data by calling handleViewAll.
-      //If the user has selected the class and the division, we will only show that class data to the user by calling handleSearch.
-
-      if (!roleName) {
-        handleViewAll()
+        if (!roleName) {
+          handleViewAll()
+        }
+        else {
+          handleSearch()
+        }
       }
-
       else {
-        handleSearch()
+        toast.error(response.error || 'Some error occurred, please try again later!');
       }
+    } catch (err) {
+      toast.error(err.message || 'Network error. Failed to update teacher details.');
     }
-
-    else {
-      toast.success('Some error occured, please try again later!');
-    }
-
   }
 
 
@@ -427,11 +413,11 @@ export default function ViewAllTeachers({ allTeachers }) {
                           <option value={"default"} className="text-center" disabled>
                             Select the Role
                           </option>
-                          <option value={"Admin"} className="text-center" >
-                            Admin
+                          <option value={"admin"} className="text-center" >
+                            admin
                           </option>
-                          <option value={"Teacher"} className="text-center" >
-                            Teacher
+                          <option value={"teacher"} className="text-center" >
+                            teacher
                           </option>
 
                         </select>
@@ -469,12 +455,16 @@ export default function ViewAllTeachers({ allTeachers }) {
   )
 }
 
-export async function getServerSideProps() {
+export async function getServerSideProps(context) {
+  const authRedirect = verifySSRAuth(context, { requiredRole: 'admin' });
+  if (authRedirect) {
+    return authRedirect;
+  }
 
-  connectDb()
+  await connectDb()
 
-  let users = await User.find({})
+  // CRITICAL: Exclude password from SSR props to prevent password leakage in __NEXT_DATA__
+  let users = await User.find({}).select('-password')
 
   return { props: { allTeachers: JSON.parse(JSON.stringify(users)) } }
-
 }

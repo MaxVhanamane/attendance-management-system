@@ -1,19 +1,36 @@
-import connectDb from '../../middleware/mongoose';
-import AttendanceRecord from '../../models/attendancerecord';
+import connectDb from '../../middleware/mongoose'
+import AttendanceRecord from '../../models/attendancerecord'
+import { withAuth } from '../../middleware/auth'
+import { getIndianDayStart, getIndianDayEnd } from '../../lib/dateUtils'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST'])
+    return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` })
+  }
 
-    connectDb()
-    
-    if (req.method === "POST") {
-        let studentsAttendanceRecord = await AttendanceRecord.find({ className: req.body.className, division: req.body.division, "date": { "$gte": req.body.sDate, "$lt": req.body.eDate } })
-        res.status(200).json({ studentsAttendanceRecord })
+  try {
+    await connectDb()
+
+    const { className, division, sDate, eDate } = req.body || {}
+
+    if (!className || !division || !sDate || !eDate) {
+      return res.status(400).json({ success: false, error: 'Missing required search criteria' })
     }
-    else {
-        res.status(405).json({ "error": "NOT Allowed" })
-    }
 
+    const startDate = getIndianDayStart(sDate)
+    const endDate = getIndianDayEnd(eDate)
 
+    const studentsAttendanceRecord = await AttendanceRecord.find({
+      className: className.toString().trim(),
+      division: division.toString().toUpperCase().trim(),
+      date: { $gte: startDate, $lte: endDate },
+    }).sort({ date: 1, rollNumber: 1 })
 
-
+    return res.status(200).json({ success: true, studentsAttendanceRecord })
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to retrieve attendance records' })
+  }
 }
+
+export default withAuth(handler)

@@ -1,58 +1,32 @@
 import { useContext, useEffect } from "react";
-import { useRouter } from "next/router"
+import { useRouter } from "next/router";
 import { AuthContext } from './../context/AuthState';
 
 export default function Layout({ children }) {
-
-  const router = useRouter()
-  const { removeToken, setLoading } = useContext(AuthContext);
+  const router = useRouter();
+  const { token, role, loading } = useContext(AuthContext);
 
   useEffect(() => {
+    const publicRoutes = ['/login', '/forgotpassword'];
+    const adminRoutes = ['/dashboard/addteacher', '/dashboard/viewallteachers'];
+    const isPublicRoute = publicRoutes.includes(router.pathname);
 
-    let token = localStorage.getItem("token");
-    let role = localStorage.getItem("role");
-    if (!token && !role && router.pathname != "/login" && router.pathname != "/forgotpassword") {
-      router.push("/login")
+    if (!loading && !token && !isPublicRoute) {
+      router.push("/login");
+      return;
     }
 
-    async function verify() {
-      setLoading(true)
-      const serverResponse = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/verifyauthexptime`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        }
-      })
-
-
-      const response = await serverResponse.json()
-
-      if (!response.success) {
-        removeToken();
-        router.push("/login")
-        alert("Token expired : \n please login again to refresh your token.")
+    if (!loading && token && adminRoutes.includes(router.pathname)) {
+      const userRole = (role || '').toLowerCase();
+      if (userRole !== 'admin') {
+        router.push("/");
       }
-
-      setTimeout(() => {
-        setLoading(false)
-        // To avoid flicker, we will keep the loading state true if we are not on the home screen.
-        if (router.pathname != "/") {
-          setLoading(true)
-        }
-      }, 500);
-
     }
-
-    if (token) {
-      verify()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.query])
+  }, [router, token, role, loading]);
 
   return (
     <div className="h-screen relative">
       {children}
     </div>
-  )
+  );
 }

@@ -1,28 +1,29 @@
-import connectDb from '../../middleware/mongoose';
-import Student from '../../models/students';
+import connectDb from '../../middleware/mongoose'
+import Student from '../../models/students'
+import { withAuth } from '../../middleware/auth'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
+  try {
+    await connectDb()
 
-    connectDb()
+    if (req.method === 'POST') {
+      const { className, division } = req.body || {}
+      const query = {}
+      if (className) query.className = className.trim()
+      if (division) query.division = division.toUpperCase().trim()
 
-   if(req.method==="POST")
-
-   {
-    let students = await Student.find({className:req.body.className,division:req.body.division})
-
-    res.status(200).json({ students })
-   }
-   else if (req.method==="GET"){
- 
-        let students = await Student.find({})
-
-        res.status(200).json({ students })
-   }
-   else{
-    res.status(405).json({"error":"NOT Allowed"})
-   }
-       
-    
-   
-  
+      const students = await Student.find(query).sort({ rollNumber: 1 })
+      return res.status(200).json({ success: true, students })
+    } else if (req.method === 'GET') {
+      const students = await Student.find({}).sort({ className: 1, division: 1, rollNumber: 1 })
+      return res.status(200).json({ success: true, students })
+    } else {
+      res.setHeader('Allow', ['GET', 'POST'])
+      return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` })
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to fetch students' })
+  }
 }
+
+export default withAuth(handler)

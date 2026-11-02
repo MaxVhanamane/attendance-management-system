@@ -9,6 +9,10 @@ import { useRouter } from 'next/router';
 import { v4 as uuidv4 } from 'uuid';
 import { TbCircle } from "react-icons/tb"
 import { TbCircleCheck } from "react-icons/tb"
+import { verifySSRAuth } from '../middleware/auth';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
+import { getIndianDateString } from '../lib/dateUtils';
+import { toast } from 'react-toastify';
 
 export default function Attendancerecord({ allStudents, classNameValue }) {
 
@@ -93,68 +97,53 @@ export default function Attendancerecord({ allStudents, classNameValue }) {
         }
     }
 
-    let dates = attendance.map((item) => {
-        return parseInt(item.date.split("T")[0].split("-")[1] + item.date.split("T")[0].split("-")[2])
-    })
+    let dates = (attendance || []).map((item) => {
+        return item.date ? getIndianDateString(item.date) : ""
+    }).filter(Boolean)
 
-    let uniqueDates = [...new Set(dates.sort())];
+    let uniqueDates = [...new Set(dates)].sort();
 
-    // using the students list (i.e studentDetails) to map over the attendance and get the attendance of an individual student.
-    //later we will use studentAttendance to display it accordingly
-    // first sort the students using roll number then sort their attendance using the date. then we can directly use it.
-    // The array structure will consist of sub-arrays, where each sub-array represents the attendance of a specific student (which looks like this  [["P","A","P"],["A","P","P"],....] ). 
-    //The first element in the sub-array indicates the attendance of the student with roll number 1, the second element in the sub-array indicates the attendance
-    // of the student with roll number 2, and so on.
+    let sortedStudents = [...studentDetails].sort((d, e) => { return d.rollNumber - e.rollNumber })
 
-    let studentAttendance = studentDetails.sort((d, e) => { return d.rollNumber - e.rollNumber }).map((item, index) => {
-
-        let b = attendance?.filter(x => {
-            // here x.name is a foreign key in attendance collection which is equal to the student _id
-            return x.name === item._id
-        }).sort(function (a, b) {
-            return new Date(a.date) - new Date(b.date);
+    let studentAttendance = sortedStudents.map((item) => {
+        let studentRecords = attendance?.filter(x => String(x.name) === String(item._id)) || []
+        let recordByDate = {}
+        studentRecords.forEach(r => {
+            if (r.date) {
+                let dStr = getIndianDateString(r.date)
+                recordByDate[dStr] = r
+            }
         })
 
-        // Suppose we already have 10 students added and their 10-day attendance has been taken. If we later add an 11th student and take their attendance, the table may not display the attendance properly. To make the data look properly we will add dummy data.(To determine the number of dummy objects we need to add, we will subtract the length of b from the length of uniqueDates using uniqueDates.length - b.length.). 
-        // Suppose we have 30 unique dates and the attendance of the new student has only been recorded for 10 days. To match the table correctly, we need to add 20 more dummy objects."
-
-        if (b.length != uniqueDates.length) {
-            let newArray = uniqueDates.slice(0, uniqueDates.length - b.length);
-            newArray.forEach(() => {
-                b.unshift({ _id: uuidv4(), attendance: "" })
-            })
-
-        }
-
-        return b
+        return uniqueDates.map(dStr => {
+            if (recordByDate[dStr]) {
+                return recordByDate[dStr]
+            }
+            return { _id: uuidv4(), name: item._id, attendance: "", date: dStr }
+        })
     })
 
     const getData = async () => {
+        try {
+            let sDate = getIndianDateString(startDate)
+            let eDate = getIndianDateString(endDate)
+            let data = { sDate, eDate, className, division }
 
-        const getIsoDate = (a) => {
-            // adding offset so that it can match indian time
-            const dt = new Date(a);
-            dt.setHours(dt.getHours() + 5);
-            dt.setMinutes(dt.getMinutes() + 30);
-            const isoString = dt.toISOString();
-            return isoString
+            const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/getdatewisedata`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+            })
+
+            let studentsData = await res.json()
+            if (studentsData.success) {
+                setAttendance(studentsData.studentsAttendanceRecord || [])
+                setShowAttendance(true)
+            } else {
+                toast.error(studentsData.error || 'Failed to retrieve attendance')
+            }
+        } catch (err) {
+            toast.error(err.message || 'Network error. Failed to retrieve attendance records.');
         }
-
-        let sDate = getIsoDate(startDate).substring(0, 10) + "T00:00:00Z"
-        let eDate = getIsoDate(endDate).substring(0, 10) + "T23:59:59Z"
-        let data = { sDate, eDate, className, division }
-
-        const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/getdatewisedata`, {
-            method: 'POST', // or 'PUT'
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        })
-
-        let studentsData = await res.json()
-        setAttendance(studentsData.studentsAttendanceRecord)
-        setShowAttendance(true)
     }
 
     const getPdf = async () => {
@@ -239,10 +228,9 @@ export default function Attendancerecord({ allStudents, classNameValue }) {
                                     </th>
 
                                     {uniqueDates.map((item) => {
-                                        return <th key={item} scope="col" className="py-3 px-2 text-center"> {
-                                            ["10", "11", "12"].includes(item.toString().slice(0, 2)) ? item.toString().slice(2) + "/" + item.toString().slice(0, 2) : item.toString().slice(1) + "/" + item.toString().slice(0, 1)
-
-                                        } </th>
+                                        const parts = item.split("-");
+                                        const label = parts.length === 3 ? `${parts[2]}/${parts[1]}` : item;
+                                        return <th key={item} scope="col" className="py-3 px-2 text-center">{label}</th>
                                     })}
 
                                     <th scope="col" className="py-3 px-2 text-center">
@@ -293,45 +281,32 @@ export default function Attendancerecord({ allStudents, classNameValue }) {
  that I want */}
 
                                         {studentAttendance?.find(array => {
-                                            return array?.find(obj => obj?.name === item?._id)
+                                            return array?.find(obj => String(obj?.name) === String(item?._id))
                                         })?.map((i) => {
                                             return <td key={i._id} className={`py-4 ${i.attendance === "NT" ? "text-red-600" : null} font-semibold px-2 text-center`}>
                                                 {i.attendance}
                                             </td>
                                         })}
-                                        {/* you can use following code also. to iterate over the attendance. but find method stops as soon as it finds and filter doesn't it iterates over all the elements. */}
-                                        {/* {studentAttendance?.map((array) => {
-                                            return array.filter((obj) => {
-                                                if (obj?.name === item?._id)
-                                                    return obj;
-                                            }).map((obj, index) => {
-                                                return <td key={index} className={`py-4 ${obj.attendance === "NT" ? "text-red-600" : null} font-semibold px-2 text-center`}>
-                                                    {obj.attendance}
-                                                </td>
-                                            })
-
-                                        })} */}
-
 
                                         <td className="py-4 px-2 text-center">
                                             {
-                                                attendance.filter(x => { return x.name === item._id }).filter(item => item.attendance === 'P').length
+                                                attendance.filter(x => String(x.name) === String(item._id)).filter(item => item.attendance === 'P').length
                                             }
                                         </td>
 
                                         <td className="py-4 px-2 text-center">
                                             {
-                                                attendance.filter(x => { return x.name === item._id }).filter(item => item.attendance === 'A').length
+                                                attendance.filter(x => String(x.name) === String(item._id)).filter(item => item.attendance === 'A').length
                                             }
                                         </td>
                                         <td className={`${hideColumns.ntdays && "hidden"} py-4 px-2 text-center`}>
                                             {
-                                                attendance.filter(x => { return x.name === item._id }).filter(item => item.attendance === 'NT').length
+                                                attendance.filter(x => String(x.name) === String(item._id)).filter(item => item.attendance === 'NT').length
                                             }
                                         </td>
                                         <td className={` py-4 px-2 text-center`}>
                                             {
-                                                attendance.filter(x => { return x.name === item._id }).length
+                                                attendance.filter(x => String(x.name) === String(item._id)).length
                                             }
                                         </td>
 
@@ -353,10 +328,14 @@ export default function Attendancerecord({ allStudents, classNameValue }) {
 
 
 export async function getServerSideProps(context) {
-    // Fetch data from external API
-    connectDb()
+    const authRedirect = verifySSRAuth(context);
+    if (authRedirect) {
+        return authRedirect;
+    }
+
+    await connectDb()
     let classNameValue = (context.query.className);
     let division = (context.query.division);
-    let studentNames = await Student.find({ className: classNameValue, division: division })
-    return { props: { allStudents: JSON.parse(JSON.stringify(studentNames)), classNameValue: classNameValue } }
+    let studentNames = await Student.find({ className: classNameValue, division: division }).sort({ rollNumber: 1 })
+    return { props: { allStudents: JSON.parse(JSON.stringify(studentNames)), classNameValue: classNameValue || '' } }
 }

@@ -5,6 +5,8 @@ import connectDb from './../middleware/mongoose';
 import { toast } from 'react-toastify';
 import {BiRadioCircleMarked} from "react-icons/bi"
 import {HiCheckCircle} from "react-icons/hi"
+import { verifySSRAuth } from '../middleware/auth';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 
 export default function TakeAttendance({studentList,className}) {
 
@@ -17,78 +19,48 @@ const studentInformation=studentList.map((student)=>{
 const [data,setData]=useState(studentInformation)
 
 useEffect(()=>{
-   // eslint-disable-next-line react-hooks/exhaustive-deps
   localStorage.setItem("localData",JSON.stringify(studentInformation))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 },[])
 
-const getIndianTime=()=>{
-  const currentTime = new Date().getTime();
-const indianTimeZoneOffset = 330 * 60 * 1000; // 330 minutes
-const indianDate = new Date(currentTime + indianTimeZoneOffset);
-const indianDateString = indianDate.toISOString();
-return indianDateString
-}
-
-  const handleClick=async(attendance,studentInfo)=>{
+const handleClick=async(attendance,studentInfo)=>{
 //update status 
-let getStatus=JSON.parse(localStorage.getItem("localData"))
-   const index = getStatus.findIndex(item => item.name === studentInfo.name);
+let getStatus=JSON.parse(localStorage.getItem("localData")) || []
+   const index = getStatus.findIndex(item => item._id === studentInfo._id);
    if(index !== -1) {
     getStatus[index] = { ...getStatus[index], status:"done" };
     localStorage.setItem("localData",JSON.stringify(getStatus))
-    setData([...JSON.parse(localStorage.getItem("localData"))])
+    setData([...getStatus])
   }
 
-// send mail 
-    let emailData={name:studentInfo.name,email:studentInfo.email,attendance:attendance}
-    let res=await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/sendmail`, { 
-      method: 'POST', // or 'PUT'
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(emailData),
-    })
-
-   let mailResponse=await res.json()
-
-  if(mailResponse.success){
-    
-      toast.success('Email sent successfully!', {
-          autoClose: 2000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-          progress: undefined,
-        });
-  }
-  else{
-    toast.error('Some error occurred, Please try again!', {
-      autoClose: 2000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-    });
-  }
 // add attendance
-// as we are living in india so while adding the date we will add it in ISO format date:new Date().toISOString() 
-const studentInformation = {_id:studentInfo._id,email:studentInfo.email,className:studentInfo.className,division:studentInfo.division,rollNumber:studentInfo.rollNumber,attendance:attendance,date:getIndianTime(),time:new Date().toLocaleTimeString(),
+const istTime = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
+const studentInformation = {_id:studentInfo._id,email:studentInfo.email,className:studentInfo.className,division:studentInfo.division,rollNumber:studentInfo.rollNumber,attendance:attendance,date:new Date().toISOString(),time:istTime,
   genRegNumber:studentInfo.genRegNumber,caste:studentInfo.caste,subCaste:studentInfo.subCaste,DOB:studentInfo.DOB,phone:studentInfo.phone};
      
-   const response = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/addattendance`, {
-     method: 'POST', // or 'PUT'
-     headers: {
-       'Content-Type': 'application/json',
-     },
-     body: JSON.stringify(studentInformation),
-   })
-   const fresponse = await response.json()
+   try {
+     const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/addattendance`, {
+       method: 'POST',
+       body: JSON.stringify(studentInformation),
+     })
+     const fresponse = await response.json()
+     if (fresponse.success) {
+       toast.success(`Marked ${studentInfo.name} as ${attendance === 'P' ? 'Present' : 'Absent'}`)
+     }
+   } catch (err) {
+     toast.error('Failed to save attendance record')
+   }
 
-
-
-
+// send mail asynchronously in background without blocking attendance
+    try {
+      let emailData={name:studentInfo.name,email:studentInfo.email,attendance:attendance}
+      fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/sendmail`, { 
+        method: 'POST',
+        body: JSON.stringify(emailData),
+      })
+    } catch (mailErr) {
+      // Do not block attendance if mail fails
+    }
   }
 
   return (
@@ -171,12 +143,16 @@ const studentInformation = {_id:studentInfo._id,email:studentInfo.email,classNam
 
 
 export async function getServerSideProps(context) {
-    // Fetch data from external API
-    connectDb()
+    const authRedirect = verifySSRAuth(context);
+    if (authRedirect) {
+        return authRedirect;
+    }
+
+    await connectDb()
     let className = (context.query.className);
     let division = (context.query.division);
 
-    let studentList = await Student.find({className:className,division:division})
-    return { props: { studentList:JSON.parse(JSON.stringify(studentList)),className:className } }
+    let studentList = await Student.find({className:className,division:division}).sort({ rollNumber: 1 })
+    return { props: { studentList:JSON.parse(JSON.stringify(studentList)),className:className || '' } }
   }
   

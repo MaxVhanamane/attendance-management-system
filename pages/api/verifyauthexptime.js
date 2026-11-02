@@ -1,28 +1,22 @@
-import connectDb from '../../middleware/mongoose';
-import jwt from "jsonwebtoken"
-
+import jwt from 'jsonwebtoken'
+import { extractToken } from '../../middleware/auth'
 
 export default async function handler(req, res) {
-    
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-   
-    connectDb()
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    res.setHeader('Allow', ['GET', 'POST'])
+    return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` })
+  }
 
-    if (req.method === "POST") {
-        let user= jwt.verify(token, process.env.JWT_SECRET,function(err,decode){
-            if(err){
-              res.status(200).json({ success:false,error: err })
-            }
-            else{
-                res.status(200).json({ success:true})
-            }
-          });
-    
+  const token = extractToken(req)
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'No token provided' })
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ success: false, error: 'Token is invalid or expired' })
     }
-
-
-    else {
-        res.status(400).send({ error: "Not allowed" })
-    }
+    return res.status(200).json({ success: true, user: decoded })
+  })
 }

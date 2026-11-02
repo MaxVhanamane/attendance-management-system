@@ -1,51 +1,76 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
-const nodemailer = require("nodemailer")
+import nodemailer from 'nodemailer'
+import { withAuth } from '../../middleware/auth'
 
-export default async function handler(req, res) {
+let transporter = null
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_ADDRESS,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    })
+  }
+  return transporter
+}
 
-  const { name, email, attendance } = req.body
+function escapeHtml(string) {
+  return String(string)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
-  let attendanceValue
-
-  if (attendance === "P") {
-    attendanceValue = "present"
+async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST'])
+    return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` })
   }
 
-  else { attendanceValue = "absent" }
+  const { name, email, attendance } = req.body || {}
 
-  let message = {
+  if (!email || typeof email !== 'string' || !name || typeof name !== 'string') {
+    return res.status(400).json({ success: false, error: 'Valid student name and parent email are required' })
+  }
+
+  const attendanceValue = attendance === 'P' ? 'present' : 'absent'
+  const isPresent = attendanceValue === 'present'
+  const safeName = escapeHtml(name)
+  const todayFormatted = new Date().toLocaleDateString('en-GB')
+
+  const message = {
     from: process.env.EMAIL_ADDRESS,
-    to: email,
-    subject: "Attendance",
-    // text: `Your son/daughter ${name} is ${attendanceValue}`,
-    html: `<p style="font-weight:bold">Dear parent,</p>
-        <p style="font-weight:bold"> Your son/daughter ${name} is <span style="color:${attendanceValue === "present" ? "green" : "red"}">${attendanceValue}</span> in school on ${new Date().toLocaleDateString("en-gb")}.</p>
-        <p style="font-weight:bold">आपला पाल्य ${name} आज दिनांक ${new Date().toLocaleDateString("en-gb")} रोजी शाळेत <span style="color:${attendanceValue === "present" ? "green" : "red"}">${attendanceValue === "present" ? "उपस्थित" : "अनुपस्थित"}</span>  आहे.</p>
-             <p style="font-weight:bold">Yours faithfully,</p>
-             <p style="font-weight:bold">Someshwar Highschool Hattur.</p>`
-
-  };
-
-  let tr = nodemailer.createTransport({
-    service: "gmail",
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // upgrade later with STARTTLS
-    auth: {
-      user: process.env.EMAIL_ADDRESS,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  })
+    to: email.trim(),
+    subject: `Attendance Update for ${safeName}`,
+    html: `
+      <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
+        <p style="font-weight:bold">Dear Parent,</p>
+        <p>Your son/daughter <strong>${safeName}</strong> is <span style="color:${
+      isPresent ? 'green' : 'red'
+    }; font-weight:bold;">${attendanceValue}</span> in school on ${todayFormatted}.</p>
+        <p>आपला पाल्य <strong>${safeName}</strong> आज दिनांक ${todayFormatted} रोजी शाळेत <span style="color:${
+      isPresent ? 'green' : 'red'
+    }; font-weight:bold;">${isPresent ? 'उपस्थित' : 'अनुपस्थित'}</span> आहे.</p>
+        <br/>
+        <p style="font-weight:bold">Yours faithfully,</p>
+        <p>Someshwar Highschool Hattur.</p>
+      </div>
+    `,
+  }
 
   try {
-    let data = await tr.sendMail(message)
+    await getTransporter().sendMail(message)
     return res.status(200).json({ success: true })
-
-
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to dispatch email' })
   }
-  catch (err) {
-    return res.status(500).json({ success: false })
-  }
-
-
 }
+
+// Protected route: only authenticated teachers / admins can trigger emails
+export default withAuth(handler)

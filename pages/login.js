@@ -13,16 +13,14 @@ export default function Login() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const { setToken, setRole } = useContext(AuthContext)
+  const { setToken, setRole, setUser, token } = useContext(AuthContext)
   const router = useRouter()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   useEffect(() => {
-    const token = localStorage.getItem("token")
     if (token) {
       router.push("/")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [token, router])
 
   const handleChange = (e) => {
 
@@ -41,26 +39,22 @@ export default function Login() {
     const data = { email, password };
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/login`, {
-      method: 'POST', // or 'PUT'
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'same-origin',
       body: JSON.stringify(data),
     })
 
     const response = await res.json()
 
     if (response.success) {
-
-      localStorage.setItem("token", response.jwtToken)
-      localStorage.setItem("role", response.role)
-
-      let token = localStorage.getItem("token")
-      let role = localStorage.getItem("role")
-
-
-      setToken(token)
-      setRole(role)
+      setToken("authenticated")
+      setRole(response.role)
+      if (setUser) {
+        setUser({ email: response.email, role: response.role })
+      }
 
       toast.success('Logged in successfully!', {
         autoClose: 2000,

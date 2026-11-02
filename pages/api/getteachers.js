@@ -1,29 +1,32 @@
-import connectDb from '../../middleware/mongoose';
-import User from '../../models/users';
+import connectDb from '../../middleware/mongoose'
+import User from '../../models/users'
+import { withAuth } from '../../middleware/auth'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
+  try {
+    await connectDb()
 
-    connectDb()
+    if (req.method === 'POST') {
+      const { role } = req.body || {}
+      const query = {}
+      if (role) {
+        query.role = role.trim().toLowerCase()
+      }
 
-   if(req.method==="POST")
-   {
-    let teachers = await User.find({role:req.body.role})
-
-    res.status(200).json({ teachers })
-   }
-   else if (req.method==="GET"){
- 
-        let teachers = await User.find({})
-
-        res.status(200).json({ teachers })
-    
-
-   }
-   else{
-    res.status(405).json({"error":"NOT Allowed"})
-   }
-       
-    
-   
-  
+      // CRITICAL: Always exclude password from query results
+      const teachers = await User.find(query).select('-password').sort({ name: 1 })
+      return res.status(200).json({ success: true, teachers })
+    } else if (req.method === 'GET') {
+      // CRITICAL: Always exclude password from query results
+      const teachers = await User.find({}).select('-password').sort({ name: 1 })
+      return res.status(200).json({ success: true, teachers })
+    } else {
+      res.setHeader('Allow', ['GET', 'POST'])
+      return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` })
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Failed to fetch teachers' })
+  }
 }
+
+export default withAuth(handler, { requiredRole: 'admin' })

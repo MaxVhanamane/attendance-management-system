@@ -5,6 +5,9 @@ import { toast } from 'react-toastify';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { useRouter } from "next/router"
+import { fetchWithAuth } from '../../lib/fetchWithAuth';
+import { getIndianDateString } from '../../lib/dateUtils';
+import { verifySSRAuth } from '../../middleware/auth';
 
 const Viewattendance = () => {
 
@@ -17,26 +20,27 @@ const Viewattendance = () => {
 
 
   const handleSubmit = async (event, _id) => {
-
     event.preventDefault()
-    const attendanceValue = studentAttendance.find((item) => item._id === _id).attendance
+    const attendanceValue = studentAttendance.find((item) => item._id === _id)?.attendance
 
     if (attendanceValue === "P" || attendanceValue === "A" || attendanceValue === "NT") {
+      try {
+        const data = { _id, attendance: attendanceValue }
 
-      const data = { _id, attendance: attendanceValue }
+        const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/editattendance`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        })
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/editattendance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
+        const response = await res.json()
 
-      const response = await res.json()
-
-      if (response.success) {
-        toast.success('Attendance updated successfully!')
+        if (response.success) {
+          toast.success('Attendance updated successfully!')
+        } else {
+          toast.error(response.error || 'Failed to update attendance')
+        }
+      } catch (err) {
+        toast.error(err.message || 'Network error. Failed to update attendance.')
       }
     }
     else {
@@ -47,58 +51,41 @@ const Viewattendance = () => {
   }
 
   const handleChange = (e, index) => {
-
     const updatedStudentAttendance = [...studentAttendance];
     updatedStudentAttendance[index].attendance = e.target.value;
     setStudentAttendance(updatedStudentAttendance);
-
   };
 
   const getData = async () => {
+    try {
+      let sDate = getIndianDateString(startDate)
+      let eDate = getIndianDateString(endDate)
+      let data = { _id, sDate, eDate, className, division }
 
-    const getIsoDate = (a) => {
-      // adding offset so that it can match indian time
-      const dt = new Date(a);
-      dt.setHours(dt.getHours() + 5);
-      dt.setMinutes(dt.getMinutes() + 30);
-      const isoString = dt.toISOString();
-      return isoString
-    }
+      const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/getstudentwiseattendance`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
 
-    let sDate = getIsoDate(startDate).substring(0, 10) + "T00:00:00Z"
-    let eDate = getIsoDate(endDate).substring(0, 10) + "T23:59:59Z"
-    let data = { _id, sDate, eDate, className, division }
+      let studentsData = await res.json()
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/getstudentwiseattendance`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
+      setStudentAttendance(studentsData.studentsAttendance || [])
 
-    let studentsData = await res.json()
-
-    setStudentAttendance(studentsData.studentsAttendance)
-
-    if (studentsData.studentsAttendance.length <= 0) {
-      setNoRecordsFound(true)
+      if (!studentsData.studentsAttendance || studentsData.studentsAttendance.length <= 0) {
+        setNoRecordsFound(true)
+      } else {
+        setNoRecordsFound(false)
+      }
+    } catch (err) {
+      toast.error('Failed to retrieve student attendance records');
     }
   }
 
   return (
     <>
-      <style jsx global>{`
-    footer{
-     display:none;
-    }
-    nav{
-     display:none;
-    }
-   `}</style>
       <Head>
-        <title>Attendance</title>
-        <meta name="description" content="Student attendance" />
+        <title>Student Attendance - ClassScribe</title>
+        <meta name="description" content="Student attendance details" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <DashboardSidebar />
@@ -141,7 +128,7 @@ const Viewattendance = () => {
             <div>
 
               <div className="mb-2">
-                <p>Date: {i.date.split("T")[0].split("-").reverse().join("-")}</p>
+                <p>Date: {getIndianDateString(i.date).split("-").reverse().join("-")}</p>
               </div>
 
               <div className="mb-2">
@@ -163,5 +150,13 @@ const Viewattendance = () => {
 }
 
 export default Viewattendance
+
+export async function getServerSideProps(context) {
+  const authRedirect = verifySSRAuth(context, { allowedRoles: ['admin', 'teacher'] });
+  if (authRedirect) {
+    return authRedirect;
+  }
+  return { props: {} };
+}
 
 

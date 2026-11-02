@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import Head from "next/head";
 import DashboardSidebar from '../../components/DashboardSidebar';
 import { toast } from 'react-toastify';
+import { fetchWithAuth } from '../../lib/fetchWithAuth';
+import { verifySSRAuth } from '../../middleware/auth';
 
 export default function AddStudent() {
 
@@ -19,117 +21,49 @@ export default function AddStudent() {
   })
 
   const handleStudentInfoChange = (e) => {
-
-    if (e.target.name === "name") {
-      setStudentDetails({
-        ...studentDetails,
-        name: e.target.value
-      })
-    }
-
-    else if (e.target.name === "email") {
-      setStudentDetails({
-        ...studentDetails,
-        email: e.target.value
-      })
-    }
-
-    else if (e.target.name === "className") {
-      setStudentDetails({
-        ...studentDetails,
-        className: e.target.value
-      })
-    }
-
-    else if (e.target.name === "division") {
-      setStudentDetails({
-        ...studentDetails,
-        division: e.target.value.toUpperCase()
-      })
-    }
-
-    else if (e.target.name === "rollNumber") {
-      setStudentDetails({
-        ...studentDetails,
-        rollNumber: e.target.value
-      })
-    }
-
-    else if (e.target.name === "phone") {
-      setStudentDetails({
-        ...studentDetails,
-        phone: e.target.value
-      })
-    }
-
-
-    else if (e.target.name === "genRegNumber") {
-      setStudentDetails({
-        ...studentDetails,
-        genRegNumber: e.target.value
-      })
-    }
-
-    else if (e.target.name === "DOB") {
-      setStudentDetails({
-        ...studentDetails,
-        DOB: e.target.value
-      })
-    }
-
-    else if (e.target.name === "caste") {
-      setStudentDetails({
-        ...studentDetails,
-        caste: e.target.value
-      })
-    }
-
-    else if (e.target.name === "subCaste") {
-      setStudentDetails({
-        ...studentDetails,
-        subCaste: e.target.value
-      })
-    }
+    const { name, value } = e.target;
+    setStudentDetails((prev) => ({
+      ...prev,
+      [name]: name === "division" ? value.toUpperCase() : value,
+    }));
   }
 
   const handleAddStudent = async () => {
 
     const studentData = { name: studentDetails.name, email: studentDetails.email, className: studentDetails.className, division: studentDetails.division, rollNumber: studentDetails.rollNumber, phone: studentDetails.phone, genRegNumber: studentDetails.genRegNumber, DOB: new Date(studentDetails.DOB), caste: studentDetails.caste, subCaste: studentDetails.subCaste };
 
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/addstudent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(studentData),
-    })
-
-    const response = await res.json()
-
-    if (response.success) {
-
-      toast.success('Student added successfully!');
-
-      setStudentDetails({
-        ...studentDetails,
-        name: "",
-        email: "",
-        phone: "",
-        className: "",
-        division: "",
-        rollNumber: "",
-        genRegNumber: "",
-        DOB: "",
-        caste: "",
-        subCaste: ""
+    try {
+      const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/addstudent`, {
+        method: 'POST',
+        body: JSON.stringify(studentData),
       })
 
-    }
-    else {
-      toast.error('Some error occured! please try again later.');
-    }
+      const response = await res.json()
 
+      if (response.success) {
+
+        toast.success(response.message || 'Student added successfully!');
+
+        setStudentDetails({
+          name: "",
+          email: "",
+          phone: "",
+          className: "",
+          division: "",
+          rollNumber: "",
+          genRegNumber: "",
+          DOB: "",
+          caste: "",
+          subCaste: ""
+        })
+
+      }
+      else {
+        toast.error(response.error || 'Some error occurred! Please try again later.');
+      }
+    } catch (err) {
+      toast.error('Network error. Failed to add student.');
+    }
   }
 
   return (
@@ -365,11 +299,6 @@ export default function AddStudent() {
               placeholder="Enter subcaste" />
           </div>
 
-
-
-
-
-
           <button onClick={handleAddStudent} type="submit" className="
         px-6
         py-2.5
@@ -386,11 +315,16 @@ export default function AddStudent() {
         transition
         duration-150
         ease-in-out">Add</button>
-
-
-
         </div></div></>
   )
+}
+
+export async function getServerSideProps(context) {
+  const authRedirect = verifySSRAuth(context, { allowedRoles: ['admin', 'teacher'] });
+  if (authRedirect) {
+    return authRedirect;
+  }
+  return { props: {} };
 }
 
 

@@ -2,44 +2,39 @@ import mongoose from 'mongoose'
 
 const MONGODB_URI = process.env.MONGO_URI
 
-// If MongoDb uri is not provided we will throw an error
 if (!MONGODB_URI) {
-  throw new Error(
-    'Please define the MONGODB_URI environment variable inside .env.local'
-  )
+  throw new Error('Please define the MONGO_URI environment variable inside .env.local')
 }
 
-
-// When we first connect to the db we will cache that connection in a variable named cached so that we don't have to connect to the database again and again on each and every request. 
+// Global mongoose cache across serverless warm invocations and Next.js hot reloads
 let cached = global.mongoose
-// If we don't have cached connection then first we will set conn: null, promise: null
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null }
 }
 
-// creating an async function to connect to the db
 async function connectDb() {
-  // If we have cached connection then we don't  have to make connection once again. we will return the old connection.
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn
   }
-
-  // If we don't have cached connection then we will create one and return it.
 
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     }
 
-    cached.promise = await mongoose.connect(MONGODB_URI, { useNewUrlParser: true }).then((mongoose) => {
-      return mongoose
+    // Store the Promise immediately without 'await' to ensure concurrent deduplication
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
+      return mongooseInstance
     })
   }
 
   try {
     cached.conn = await cached.promise
   } catch (e) {
-    cached.promise = null
+    cached.promise = null // Reset so subsequent requests can retry
     throw e
   }
 
@@ -47,5 +42,3 @@ async function connectDb() {
 }
 
 export default connectDb
-
-

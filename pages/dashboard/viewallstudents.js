@@ -4,6 +4,8 @@ import Student from './../../models/students';
 import connectDb from './../../middleware/mongoose';
 import { toast } from 'react-toastify';
 import DashboardSidebar from '../../components/DashboardSidebar';
+import { verifySSRAuth } from '../../middleware/auth';
+import { fetchWithAuth } from '../../lib/fetchWithAuth';
 
 export default function ViewAllStudents({ allStudents }) {
 
@@ -58,42 +60,29 @@ export default function ViewAllStudents({ allStudents }) {
 
 
   const handleDeleteStudent = async (item) => {
+    try {
+      let studentInfo = item
 
-    let studentInfo = item
-
-    let response = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/deletestudent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(studentInfo),
-    })
-
-    let result = await response.json()
-
-    if (result.success) {
-      // once the student information is deleted from db. we will remove it from here.(optimistic updates)
-      const newData = dataToSortClassNameAndDiv.filter((student) => {
-        if (student._id != studentInfo._id) {
-          return studentInfo
-        }
+      let response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/deletestudent`, {
+        method: 'POST',
+        body: JSON.stringify(studentInfo),
       })
 
-      setDataToSortClassNameAndDiv(newData)
+      let result = await response.json()
 
-      const newData2 = data.filter((student) => {
-        if (student._id != studentInfo._id) {
-          return studentInfo
-        }
-      })
+      if (result.success) {
+        const newData = dataToSortClassNameAndDiv.filter((student) => student._id !== studentInfo._id)
+        setDataToSortClassNameAndDiv(newData)
 
-      setData(newData2)
-      toast.success(result.message);
-
-    }
-    else {
-      toast.error(result.message);
-
+        const newData2 = data.filter((student) => student._id !== studentInfo._id)
+        setData(newData2)
+        toast.success(result.message || 'Student deleted successfully');
+      }
+      else {
+        toast.error(result.error || result.message || 'Failed to delete student');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Network error. Failed to delete student.');
     }
   }
 
@@ -174,55 +163,42 @@ export default function ViewAllStudents({ allStudents }) {
 
   }
   const handleEditStudentDetails = async () => {
+    try {
+      const studentInfo = { _id: studentDetails._id, name: studentDetails.name, email: studentDetails.email, className: studentDetails.className, division: studentDetails.division, rollNumber: studentDetails.rollNumber, phone: studentDetails.phone, genRegNumber: studentDetails.genRegNumber, DOB: new Date(studentDetails.DOB), caste: studentDetails.caste, subCaste: studentDetails.subCaste };
 
-    const studentInfo = { _id: studentDetails._id, name: studentDetails.name, email: studentDetails.email, className: studentDetails.className, division: studentDetails.division, rollNumber: studentDetails.rollNumber, phone: studentDetails.phone, genRegNumber: studentDetails.genRegNumber, DOB: new Date(studentDetails.DOB), caste: studentDetails.caste, subCaste: studentDetails.subCaste };
+      const res = await fetchWithAuth(`${process.env.NEXT_PUBLIC_HOST}/api/editstudentdetails`, {
+        method: 'POST',
+        body: JSON.stringify(studentInfo),
+      })
+      const response = await res.json()
 
+      if (response.success) {
+        toast.success('Student details updated successfully!');
+        let index = data.findIndex(student => student._id === studentDetails._id);
+        let newData = [...data]
+        newData.splice(index, 1, response.data)
+        let student = data[index]
+        setData(newData)
+        if (student && (student.className != response.data?.className || student.division != response.data?.division)) {
+          let newFoundStudents = newData.filter((data) => {
+            if (data.className === student.className && data.division === student.division) {
+              return data
+            }
+          })
+          setData(newFoundStudents)
+        }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_HOST}/api/editstudentdetails`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(studentInfo),
-    })
-    const response = await res.json()
-
-    if (response.success) {
-      toast.success('Student details updated successfully!');
-      // making optimistic updates. I can make a new request to get updated data but here I prefer doing optimistic updates.
-      // get the index of the student information that just got updated
-      let index = data.findIndex(student => student._id === studentDetails._id);
-      // create a copy of old data so that I can update state properly
-      let newData = [...data]
-      // remove old student information and add new student information. response.data gives us updated student information.
-      newData.splice(index, 1, response.data)
-      // I need old student information to check wheather the teacher/user changed the className or division. I can do that by comparing the old data and the new data I get from the server. because If teacher/user changes className or division I want to remove that student information from currently selected className and division. I can get the old student information using data[index]
-      let student = data[index]
-      // set updated data
-      setData(newData)
-      // if className or division has changed, that case we will handle it here.
-      if (student.className != response.data.className || student.division != response.data.division) {
-        let newFoundStudents = newData.filter((data) => {
-          if (data.className === student.className && data.division === student.division) {
-            return data
-          }
-        })
-        setData(newFoundStudents)
+        let index2 = dataToSortClassNameAndDiv.findIndex(obj => obj._id === studentDetails._id);
+        let newDataToSortClassNameAndDiv = [...dataToSortClassNameAndDiv]
+        newDataToSortClassNameAndDiv.splice(index2, 1, response.data)
+        setDataToSortClassNameAndDiv(newDataToSortClassNameAndDiv)
       }
-
-      // updating dataToSortClassNameAndDiv so that I can keep all the data in sync. because I am using dataToSortClassNameAndDiv in handleSearch. 
-      // If I don't do this and do the search again then it will show old data.
-      let index2 = dataToSortClassNameAndDiv.findIndex(obj => obj._id === studentDetails._id);
-      let newDataToSortClassNameAndDiv = [...dataToSortClassNameAndDiv]
-
-      newDataToSortClassNameAndDiv.splice(index2, 1, response.data)
-
-      setDataToSortClassNameAndDiv(newDataToSortClassNameAndDiv)
+      else {
+        toast.error(response.error || 'Some error occurred, please try again later!');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Network error. Failed to update student details.');
     }
-    else {
-      toast.success('Some error occured, please try again later!');
-    }
-
   }
 
 
@@ -669,12 +645,14 @@ export default function ViewAllStudents({ allStudents }) {
 }
 
 export async function getServerSideProps(context) {
-  // Fetch data from external API
-  connectDb()
-  // let className = (context.query.className);
-  // let division = (context.query.division);
+  const authRedirect = verifySSRAuth(context);
+  if (authRedirect) {
+    return authRedirect;
+  }
 
-  let students = await Student.find({})
+  await connectDb()
+
+  let students = await Student.find({}).sort({ className: 1, division: 1, rollNumber: 1 })
 
   return { props: { allStudents: JSON.parse(JSON.stringify(students)) } }
 }
