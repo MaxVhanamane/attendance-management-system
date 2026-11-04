@@ -86,10 +86,10 @@ export default function Login() {
         <title>ClassScribe - Login</title>
         <meta name="description" content="Login page" />
       </Head>
-      <section className=" bg-gray-50 fixed  top-[54px]   inset-0 ">
+      <section className=" bg-gray-50 fixed top-[54px] inset-0 ">
 
         <div className="flex justify-center items-center  text-gray-800 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2   w-full  lg:w-1/2 sm:w-[70%] md:w-[90%]  ">
-          <div className=" w-full flex items-center justify-center flex-col md:flex-row  mx-6   shadow-md shadow-gray-400 rounded-lg px-2 ">
+          <div className=" w-full flex items-center justify-center flex-col md:flex-row mx-6 rounded-lg px-2 border border-gray-300/90">
             <div className="  overflow-hidden ">
               <div className='lg:w-80 lg:h-80 w-64 h-64 md:w-72 md:h-72 relative'>
                 <Image priority={true} src={"/school.svg"} layout="fill" objectFit="contain" alt='Illustration of students going to school' />
@@ -100,7 +100,7 @@ export default function Login() {
                 <div className=" px-4 md:px-0">
                   <div className="md:p-10   ">
                     <div className="flex items-center justify-center flex-col">
-                      <div className="w-[3.25rem] hidden  bg-teal-500 h-[3.25rem] md:flex items-center justify-center text-white rounded-full font-bold mt-6 md:mt-auto shadow-lg shadow-gray-50  "><GiDeskLamp className='text-3xl' /></div>
+                      <div className="w-[3.25rem] hidden  bg-teal-500 h-[3.25rem] md:flex items-center justify-center text-white rounded-full font-bold mt-6 md:mt-auto"><GiDeskLamp className='text-3xl' /></div>
                       <h4 className="text-xl md:text-2xl font-semibold  mb-5 mt-2 pb-1 text-gray-700">Login</h4>
                     </div>
                     <form onSubmit={handleLogin} className="" >
